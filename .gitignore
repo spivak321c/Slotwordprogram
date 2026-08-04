@@ -1,0 +1,59 @@
+# Rust / Anchor build artifacts
+/target/
+programs/*/target/
+**/target/
+
+# Node dependencies
+node_modules/
+App/node_modules/
+
+# Next.js build output
+App/.next/
+App/out/
+
+# Frontend web app (not part of the smart contract)
+/App/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*keypair*.json
+id.json
+*.secret
+*.test.key.json
+
+# Generated Anchor IDL / types
+target/idl/
+target/types/
+
+# Backup files
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage / temp
+coverage/
+.nyc_output/
+.cache/
+dist/
+out/
+
+# Old PRD backup
+Slotword_PRD_old.bak
+SlotPuzzle_PRD (1).md

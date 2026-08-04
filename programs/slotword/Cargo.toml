@@ -1,0 +1,29 @@
+[package]
+name = "slotword"
+version = "0.6.3"
+description = "Daily on-chain word puzzle with staked duels on Solana"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "slotword"
+
+[features]
+no-entrypoint = []
+cpi = ["no-entrypoint"]
+default = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+anchor-spl = "0.30.1"
+sha2 = "0.10"
+
+[dev-dependencies]
+solana-sdk = "1.18"
+solana-program = "1.18"
+sha2 = "0.10"
+
+[profile.test]
+opt-level = 0
