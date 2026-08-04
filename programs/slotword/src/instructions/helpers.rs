@@ -12,7 +12,7 @@ pub fn escrow_transfer_from_room<'info>(
     to_acc: &InterfaceAccount<'info, TokenAccount>,
     authority: &AccountInfo<'info>,
     amount: u64,
-    signer: &[&[&[u8]]; 2],
+    signer: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());

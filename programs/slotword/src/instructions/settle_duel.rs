@@ -37,14 +37,14 @@ pub struct SettleDuel<'info> {
     #[account(
         mut,
         token::mint = usdc_mint,
-        token::authority = creator,
+        token::authority = room.creator,
     )]
     pub creator_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         mut,
         token::mint = usdc_mint,
-        token::authority = opponent,
+        token::authority = room.opponent,
     )]
     pub opponent_token_account: InterfaceAccount<'info, TokenAccount>,
 
@@ -111,8 +111,13 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
     let creator_key = ctx.accounts.room.creator;
     let room_uid = ctx.accounts.room.room_uid;
 
-    let signer_seeds: [&[u8]; 3] = [b"room", creator_key.as_ref(), &room_uid.to_le_bytes()[..]];
-    let signer = [&signer_seeds[..], &[room_bump][..]];
+    let signer_seeds: [&[u8]; 4] = [
+        b"room",
+        creator_key.as_ref(),
+        &room_uid.to_le_bytes()[..],
+        &[room_bump],
+    ];
+    let signer: &[&[&[u8]]] = &[&signer_seeds[..]];
 
     if both_revealed {
         let creator_ts = ctx.accounts.creator_entry.commit_timestamp;
@@ -126,7 +131,7 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
                 &ctx.accounts.creator_token_account,
                 &ctx.accounts.room.to_account_info(),
                 half,
-                &signer,
+                signer,
             )?;
             escrow_transfer_from_room(
                 &ctx.accounts.token_program,
@@ -135,14 +140,14 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
                 &ctx.accounts.opponent_token_account,
                 &ctx.accounts.room.to_account_info(),
                 total_pot - half,
-                &signer,
+                signer,
             )?;
             ctx.accounts.room.status = RoomStatus::Settled;
             ctx.accounts.room.winner = Pubkey::default();
             return Ok(());
         }
         let winner_is_creator = creator_ts < opponent_ts;
-        settle_win(&ctx, total_pot, winner_is_creator, &signer)?;
+        settle_win(&ctx, total_pot, winner_is_creator, signer)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = if winner_is_creator {
             ctx.accounts.room.creator
@@ -153,13 +158,13 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
     }
 
     if creator_revealed {
-        settle_win(&ctx, total_pot, true, &signer)?;
+        settle_win(&ctx, total_pot, true, signer)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = ctx.accounts.room.creator;
         return Ok(());
     }
     if opponent_revealed {
-        settle_win(&ctx, total_pot, false, &signer)?;
+        settle_win(&ctx, total_pot, false, signer)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = ctx.accounts.room.opponent;
         return Ok(());
@@ -173,7 +178,7 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
         &ctx.accounts.creator_token_account,
         &ctx.accounts.room.to_account_info(),
         stake,
-        &signer,
+        signer,
     )?;
     escrow_transfer_from_room(
         &ctx.accounts.token_program,
@@ -182,7 +187,7 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
         &ctx.accounts.opponent_token_account,
         &ctx.accounts.room.to_account_info(),
         stake,
-        &signer,
+        signer,
     )?;
     ctx.accounts.room.status = RoomStatus::Refunded;
     ctx.accounts.room.winner = Pubkey::default();
@@ -193,7 +198,7 @@ fn settle_win<'info>(
     ctx: &Context<'_, '_, '_, 'info, SettleDuel<'info>>,
     total_pot: u64,
     winner_is_creator: bool,
-    signer: &[&[&[u8]]; 2],
+    signer: &[&[&[u8]]],
 ) -> Result<()> {
     let config = &ctx.accounts.config;
     let (_fee, keeper_tip, platform_fee) = fee_splits(

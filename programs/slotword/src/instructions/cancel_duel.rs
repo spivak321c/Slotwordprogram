@@ -41,8 +41,13 @@ pub fn cancel_duel(ctx: Context<CancelDuel>) -> Result<()> {
     let room_bump = ctx.accounts.room.bump;
     let creator_key = ctx.accounts.room.creator;
     let room_uid = ctx.accounts.room.room_uid;
-    let signer_seeds: [&[u8]; 3] = [b"room", creator_key.as_ref(), &room_uid.to_le_bytes()[..]];
-    let signer = [&signer_seeds[..], &[room_bump][..]];
+    let signer_seeds: [&[u8]; 4] = [
+        b"room",
+        creator_key.as_ref(),
+        &room_uid.to_le_bytes()[..],
+        &[room_bump],
+    ];
+    let signer: &[&[&[u8]]] = &[&signer_seeds[..]];
 
     let cpi_accounts = token_interface::TransferChecked {
         mint: ctx.accounts.usdc_mint.to_account_info(),
@@ -53,7 +58,7 @@ pub fn cancel_duel(ctx: Context<CancelDuel>) -> Result<()> {
     let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         cpi_accounts,
-        &signer,
+        signer,
     );
     token_interface::transfer_checked(cpi_ctx, stake, USDC_DECIMALS)?;
 
