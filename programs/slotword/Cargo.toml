@@ -16,13 +16,12 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
-anchor-spl = "0.30.1"
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = "0.32.1"
 sha2 = "0.10"
 
+
 [dev-dependencies]
-solana-sdk = "1.18"
-solana-program = "1.18"
 sha2 = "0.10"
 
 [profile.test]
