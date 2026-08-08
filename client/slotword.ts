@@ -14,11 +14,11 @@ import {
   PublicKey,
   SystemProgram,
   TransactionInstruction,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
 } from "@solana/web3.js";
 import { createHash } from "crypto";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 

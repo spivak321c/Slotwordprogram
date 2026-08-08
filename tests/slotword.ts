@@ -5,10 +5,10 @@ import {
   PublicKey,
   SystemProgram,
   Keypair,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
 } from "@solana/web3.js";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   createMint,
   createAccount,
   mintTo,
