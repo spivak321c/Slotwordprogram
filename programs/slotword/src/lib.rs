@@ -55,8 +55,8 @@ pub mod slotword {
         instructions::join_duel::join_duel(ctx)
     }
 
-    pub fn set_duel_word(ctx: Context<SetDuelWord>, solution_hash: [u8; 32]) -> Result<()> {
-        instructions::set_duel_word::set_duel_word(ctx, solution_hash)
+    pub fn set_duel_word(ctx: Context<SetDuelWord>, word_hash: [u8; 32]) -> Result<()> {
+        instructions::set_duel_word::set_duel_word(ctx, word_hash)
     }
 
     pub fn commit_duel_solution(

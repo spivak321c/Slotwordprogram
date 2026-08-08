@@ -44,6 +44,8 @@ pub enum SlotwordError {
     WordNotSet,
     #[msg("Duel word has already been set")]
     WordAlreadySet,
+    #[msg("Word commitment hash must be non-zero")]
+    InvalidCommitHash,
     #[msg("Room is not ready: opponent has not joined")]
     RoomNotReady,
     #[msg("Arithmetic overflow")]

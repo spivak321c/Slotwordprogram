@@ -53,12 +53,18 @@ pub fn reveal_duel_solution(
         SlotwordError::InvalidReveal
     );
 
-    // Verify the word is the correct room answer: SHA-256(slot_hash_seed || word).
+    // Verify the word is the correct per-room answer.
+    // room_solution_hash = SHA-256(slot_hash_seed || room.key() || "DUEL") is
+    // committed at room creation; the authority commits
+    //   duel_solution_hash = SHA-256(room_solution_hash || word)
+    // via set_duel_word WITHOUT revealing the word. The word is derived
+    // off-chain (wordlist[room_solution_hash % len]) and solved via the hint
+    // API, so only a player who actually solved it can produce a valid reveal.
     let room = &ctx.accounts.room;
-    let mut hash = Sha256::new();
-    hash.update(ctx.accounts.daily_challenge.slot_hash_seed);
-    hash.update(word.as_bytes());
-    let computed = hash.finalize();
+    let mut word_hash = Sha256::new();
+    word_hash.update(room.room_solution_hash);
+    word_hash.update(word.as_bytes());
+    let computed = word_hash.finalize();
     require!(
         computed.as_slice() == room.duel_solution_hash,
         SlotwordError::WrongWord

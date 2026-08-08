@@ -24,7 +24,7 @@ pub fn escrow_transfer_from_room<'info>(
         authority: authority.clone(),
     };
     let cpi_ctx = CpiContext::new_with_signer(
-        token_program.to_account_info(),
+        token_program.key(),
         cpi_accounts,
         signer,
     );

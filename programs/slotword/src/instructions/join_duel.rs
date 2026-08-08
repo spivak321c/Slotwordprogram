@@ -79,7 +79,7 @@ pub fn join_duel(ctx: Context<JoinDuel>) -> Result<()> {
         authority: ctx.accounts.opponent.to_account_info(),
     };
     let cpi_ctx =
-        CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts);
     token_interface::transfer_checked(cpi_ctx, stake, USDC_DECIMALS)?;
     Ok(())
 }

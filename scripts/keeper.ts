@@ -3,8 +3,9 @@
  *
  * Responsibilities (per PRD §10):
  *   1. Call `set_duel_word` for newly-created rooms that don't yet have a word
- *      set (the platform backend derives the word from room.seed and an off-chain
- *      word list, then commits SHA-256(slot_hash_seed || word) on-chain).
+ *      set (the platform backend derives the word from room_solution_hash and
+ *      an off-chain word list, then commits SHA-256(room_solution_hash || word)
+ *      on-chain — the plaintext word is never submitted).
  *   2. Call `settle_duel` for rooms past their deadline where both parties have
  *      revealed (or where the deadline passed).
  *
@@ -65,9 +66,12 @@ function loadWordList(path: string): string[] {
     .filter((w: string) => w.length === 5);
 }
 
-function deriveWordFromRoomSeed(roomSeed: Buffer, wordList: string[]): string {
-  // Treat the first 4 bytes of the room seed as a little-endian u32 index.
-  const idx = roomSeed.readUInt32LE(0) % wordList.length;
+function deriveWordFromRoomSolutionHash(
+  roomSolutionHash: Buffer,
+  wordList: string[]
+): string {
+  // Treat the first 4 bytes of the room solution hash as a little-endian u32 index.
+  const idx = roomSolutionHash.readUInt32LE(0) % wordList.length;
   return wordList[idx];
 }
 
@@ -186,22 +190,24 @@ async function processSetDuelWord(
   roomPubkey: PublicKey,
   wordList: string[]
 ) {
-  // Fetch the daily challenge to get the slot_hash_seed
-  const daily = await client.fetchDailyChallenge(
-    room.dailyChallenge.dayIndex
-  );
-  const word = deriveWordFromRoomSeed(
-    Buffer.from(room.roomSeed),
+  // Derive the per-room word from the on-chain room_solution_hash + wordlist,
+  // then commit ONLY its hash — the plaintext word never goes on-chain:
+  //   room_solution_hash = SHA-256(slot_hash_seed || room.key() || "DUEL")
+  //     (fixed at room creation, unchangeable)
+  //   word = wordlist[room_solution_hash % len]  (derived off-chain, secret)
+  //   commit = SHA-256(room_solution_hash || word)
+  const word = deriveWordFromRoomSolutionHash(
+    Buffer.from(room.roomSolutionHash),
     wordList
   );
-  const solutionHash = SlotwordClient.duelSolutionHash(
-    Buffer.from(daily.slotHashSeed),
+  const wordHash = SlotwordClient.duelSolutionHash(
+    Buffer.from(room.roomSolutionHash),
     word
   );
   console.log(
-    `[keeper] set_duel_word room=${roomPubkey.toBase58()} word=${word}`
+    `[keeper] set_duel_word room=${roomPubkey.toBase58()} word=${word} (committed as hash, plaintext kept off-chain)`
   );
-  await client.setDuelWord(authorityKeypair.publicKey, roomPubkey, solutionHash);
+  await client.setDuelWord(authorityKeypair.publicKey, roomPubkey, wordHash);
 }
 
 async function processSettleDuel(

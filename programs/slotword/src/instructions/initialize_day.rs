@@ -1,8 +1,11 @@
 use crate::errors::SlotwordError;
 use crate::state::*;
 use anchor_lang::prelude::*;
+use solana_sdk_ids::sysvar::slot_hashes;
 
-const SLOT_HASHES_SYSVAR: Pubkey = solana_program::sysvar::slot_hashes::ID;
+
+//const SLOT_HASHES_SYSVAR: Pubkey = anchor_lang::solana_program::sysvar::slot_hashes::ID;
+const SLOT_HASHES_SYSVAR: Pubkey = slot_hashes::ID;
 
 #[derive(Accounts)]
 #[instruction(day_index: u64)]

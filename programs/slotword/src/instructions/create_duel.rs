@@ -87,12 +87,12 @@ pub fn create_duel(
     hasher.update(daily.slot_hash_seed);
     hasher.update(ctx.accounts.duel_room.key().as_ref());
     hasher.update(b"DUEL");
-    let room_seed: [u8; 32] = hasher.finalize().into();
+    let room_solution_hash: [u8; 32] = hasher.finalize().into();
 
     let clock = Clock::get()?;
     let room = &mut ctx.accounts.duel_room;
     room.daily_challenge = ctx.accounts.daily_challenge.key();
-    room.room_seed = room_seed;
+    room.room_solution_hash = room_solution_hash;
     room.duel_solution_hash = [0u8; 32];
     room.word_set = false;
     room.creator = ctx.accounts.creator.key();
@@ -119,7 +119,7 @@ pub fn create_duel(
         authority: ctx.accounts.creator.to_account_info(),
     };
     let cpi_ctx =
-        CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts);
     token_interface::transfer_checked(cpi_ctx, stake_amount, USDC_DECIMALS)?;
     Ok(())
 }

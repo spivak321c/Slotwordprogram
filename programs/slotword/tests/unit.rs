@@ -7,11 +7,9 @@
 
 #![cfg(test)]
 
-use solana_sdk::{
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-};
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
+use solana_signer::Signer;
 
 #[test]
 fn test_smoke_keypair() {
@@ -22,8 +20,8 @@ fn test_smoke_keypair() {
 #[test]
 fn test_commit_revealed_word_distinct_per_room() {
     // Psychological test: two rooms on the same day should NOT have the
-    // same room_seed. If they did, the prior-knowledge cheat would not be
-    // fully addressed.
+    // same room_solution_hash. If they did, the prior-knowledge cheat would
+    // not be fully addressed.
     use sha2::{Digest, Sha256};
     let slot_hash_seed = [7u8; 32];
 
@@ -45,7 +43,7 @@ fn test_commit_revealed_word_distinct_per_room() {
     assert_ne!(
         digest_a.as_slice(),
         digest_b.as_slice(),
-        "two rooms on the same day must hash to different room_seed values"
+        "two rooms on the same day must hash to different room_solution_hash values"
     );
 }
 
@@ -53,9 +51,9 @@ fn test_commit_revealed_word_distinct_per_room() {
 fn test_per_room_word_differs_from_daily_word() {
     // The duel word must NOT equal the daily free word for the prior-knowledge
     // cheat fix to work. The daily solution_hash = SHA-256(slot_hash_seed || word).
-    // The duel solution_hash (authority-set) = SHA-256(slot_hash_seed || word).
-    // The room_seed = SHA-256(slot_hash_seed || room.key() || "DUEL").
-    // For the same word, the daily solution_hash and the room_seed must differ.
+    // The room_solution_hash = SHA-256(slot_hash_seed || room.key() || "DUEL").
+    // For the same word, the daily solution_hash and the room_solution_hash
+    // must differ.
     use sha2::{Digest, Sha256};
     let slot_hash_seed = [9u8; 32];
     let word = b"BLOCK";
@@ -75,8 +73,53 @@ fn test_per_room_word_differs_from_daily_word() {
     assert_ne!(
         daily_digest.as_slice(),
         room_digest.as_slice(),
-        "daily solution_hash and room_seed must differ even when the word is the same"
+        "daily solution_hash and room_solution_hash must differ even when the word is the same"
     );
+}
+
+#[test]
+fn test_duel_word_commitment_round_trip() {
+    // Option 1 scheme: the word is committed WITHOUT publishing it.
+    //   room_solution_hash = SHA-256(slot_hash_seed || room.key() || "DUEL")  (at creation)
+    //   commitment         = SHA-256(room_solution_hash || word)             (set_duel_word)
+    // Reveal recomputes SHA-256(room_solution_hash || word) and compares.
+    use sha2::{Digest, Sha256};
+    let slot_hash_seed = [11u8; 32];
+    let room = Pubkey::new_unique();
+    let word = b"CRANE";
+
+    let mut room_hasher = Sha256::new();
+    room_hasher.update(slot_hash_seed);
+    room_hasher.update(room.to_bytes());
+    room_hasher.update(b"DUEL");
+    let room_solution_hash = room_hasher.finalize();
+
+    // The authority commits the hash — the plaintext word never goes on-chain.
+    let mut commit_hasher = Sha256::new();
+    commit_hasher.update(room_solution_hash.as_slice());
+    commit_hasher.update(word);
+    let commitment = commit_hasher.finalize();
+
+    // Reveal: same computation must match.
+    let mut reveal_hasher = Sha256::new();
+    reveal_hasher.update(room_solution_hash.as_slice());
+    reveal_hasher.update(word);
+    let recomputed = reveal_hasher.finalize();
+    assert_eq!(commitment.as_slice(), recomputed.as_slice());
+
+    // A wrong word must fail the reveal check.
+    let mut wrong_hasher = Sha256::new();
+    wrong_hasher.update(room_solution_hash.as_slice());
+    wrong_hasher.update(b"WRONG");
+    let wrong = wrong_hasher.finalize();
+    assert_ne!(commitment.as_slice(), wrong.as_slice());
+
+    // The commitment must NOT leak the word via the old plaintext-style
+    // daily formula (SHA-256(seed || word)) — inputs differ structurally.
+    let mut daily_style = Sha256::new();
+    daily_style.update(slot_hash_seed);
+    daily_style.update(word);
+    assert_ne!(commitment.as_slice(), daily_style.finalize().as_slice());
 }
 
 #[test]

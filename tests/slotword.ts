@@ -195,8 +195,8 @@ describe("slotword", () => {
     assert.equal(room.stakeAmount.toNumber(), 2_000_000);
     assert.equal(room.status, { active: {} } as any);
     assert.ok(
-      room.roomSeed.some((b: number) => b !== 0),
-      "room_seed must not be all zeros"
+      room.roomSolutionHash.some((b: number) => b !== 0),
+      "room_solution_hash must not be all zeros"
     );
     assert.equal(room.wordSet, false, "word not set until authority calls setDuelWord");
     assert.equal(room.roomUid.toNumber(), 1, "room_uid persisted");

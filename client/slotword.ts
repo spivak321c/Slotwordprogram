@@ -105,8 +105,8 @@ export class SlotwordClient {
       .digest();
   }
 
-  /** SHA-256(slot_hash_seed || roomKey || "DUEL") — the per-room seed. */
-  static roomSeed(slotHashSeed: Buffer, roomKey: PublicKey): Buffer {
+  /** SHA-256(slot_hash_seed || roomKey || "DUEL") — the per-room answer commitment (fixed at room creation). */
+  static roomSolutionHash(slotHashSeed: Buffer, roomKey: PublicKey): Buffer {
     return createHash("sha256")
       .update(slotHashSeed)
       .update(roomKey.toBuffer())
@@ -114,10 +114,10 @@ export class SlotwordClient {
       .digest();
   }
 
-  /** SHA-256(slot_hash_seed || word) — the duel solution hash (authority-set). */
-  static duelSolutionHash(slotHashSeed: Buffer, word: string): Buffer {
+  /** SHA-256(room_solution_hash || word) — the per-room word commitment. Committed by the authority via set_duel_word; the plaintext word is never sent on-chain. */
+  static duelSolutionHash(roomSolutionHash: Buffer, word: string): Buffer {
     return createHash("sha256")
-      .update(slotHashSeed)
+      .update(roomSolutionHash)
       .update(word)
       .digest();
   }
@@ -260,14 +260,15 @@ export class SlotwordClient {
       .rpc();
   }
 
+  /** Authority commits the per-room word commitment hash (SHA-256(room_solution_hash || word)). The plaintext word is never submitted on-chain. */
   async setDuelWord(
     authority: PublicKey,
     room: PublicKey,
-    solutionHash: Buffer | number[]
+    wordHash: Buffer | number[]
   ): Promise<string> {
     const [config] = this.configPda();
     return this.program.methods
-      .setDuelWord(Array.from(solutionHash))
+      .setDuelWord(Array.from(wordHash))
       .accounts({
         room,
         config,

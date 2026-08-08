@@ -2,27 +2,34 @@
 name = "slotword"
 version = "0.6.3"
 description = "Daily on-chain word puzzle with staked duels on Solana"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "slotword"
 
 [features]
-no-entrypoint = []
-cpi = ["no-entrypoint"]
 default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
 custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
-anchor-spl = "0.32.1"
+anchor-lang = { version = "=1.1.2", features = ["init-if-needed"] }
+anchor-spl = "=1.1.2"
 sha2 = "0.10"
-
+solana-sdk-ids = "3.1.0"
 
 [dev-dependencies]
 sha2 = "0.10"
+solana-keypair = "3.0.1"
+solana-pubkey = "3.0.0"
+solana-signer = "3.0.0"
 
-[profile.test]
-opt-level = 0
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

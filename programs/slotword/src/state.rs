@@ -14,7 +14,7 @@ pub struct DailyChallenge {
 #[derive(InitSpace)]
 pub struct DuelRoom {
     pub daily_challenge: Pubkey,
-    pub room_seed: [u8; 32],
+    pub room_solution_hash: [u8; 32],
     pub duel_solution_hash: [u8; 32],
     pub word_set: bool,
     pub creator: Pubkey,

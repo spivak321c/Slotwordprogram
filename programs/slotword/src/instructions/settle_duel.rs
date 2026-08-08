@@ -147,7 +147,21 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
             return Ok(());
         }
         let winner_is_creator = creator_ts < opponent_ts;
-        settle_win(&ctx, total_pot, winner_is_creator, signer)?;
+        //settle_win(&ctx, total_pot, winner_is_creator, signer)?;
+        settle_win(
+    &ctx.accounts.token_program,
+    &ctx.accounts.usdc_mint,
+    &ctx.accounts.room_escrow,
+    &ctx.accounts.creator_token_account,
+    &ctx.accounts.opponent_token_account,
+    &ctx.accounts.keeper_token_account,
+    &ctx.accounts.platform_token_account,
+    &ctx.accounts.room,
+    &ctx.accounts.config,
+    total_pot,
+    winner_is_creator,
+    signer,
+)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = if winner_is_creator {
             ctx.accounts.room.creator
@@ -158,13 +172,41 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
     }
 
     if creator_revealed {
-        settle_win(&ctx, total_pot, true, signer)?;
+        //settle_win(&ctx, total_pot, true, signer)?;
+        settle_win(
+    &ctx.accounts.token_program,
+    &ctx.accounts.usdc_mint,
+    &ctx.accounts.room_escrow,
+    &ctx.accounts.creator_token_account,
+    &ctx.accounts.opponent_token_account,
+    &ctx.accounts.keeper_token_account,
+    &ctx.accounts.platform_token_account,
+    &ctx.accounts.room,
+    &ctx.accounts.config,
+    total_pot,
+    true,
+    signer,
+)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = ctx.accounts.room.creator;
         return Ok(());
     }
     if opponent_revealed {
-        settle_win(&ctx, total_pot, false, signer)?;
+        //settle_win(&ctx, total_pot, false, signer)?;
+        settle_win(
+    &ctx.accounts.token_program,
+    &ctx.accounts.usdc_mint,
+    &ctx.accounts.room_escrow,
+    &ctx.accounts.creator_token_account,
+    &ctx.accounts.opponent_token_account,
+    &ctx.accounts.keeper_token_account,
+    &ctx.accounts.platform_token_account,
+    &ctx.accounts.room,
+    &ctx.accounts.config,
+    total_pot,
+    false,
+    signer,
+)?;
         ctx.accounts.room.status = RoomStatus::Settled;
         ctx.accounts.room.winner = ctx.accounts.room.opponent;
         return Ok(());
@@ -195,58 +237,69 @@ pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
 }
 
 fn settle_win<'info>(
-    ctx: &Context<'_, '_, '_, 'info, SettleDuel<'info>>,
+    token_program: &Interface<'info, TokenInterface>,
+    usdc_mint: &InterfaceAccount<'info, Mint>,
+    room_escrow: &InterfaceAccount<'info, TokenAccount>,
+    creator_token_account: &InterfaceAccount<'info, TokenAccount>,
+    opponent_token_account: &InterfaceAccount<'info, TokenAccount>,
+    keeper_token_account: &InterfaceAccount<'info, TokenAccount>,
+    platform_token_account: &InterfaceAccount<'info, TokenAccount>,
+    room: &Account<'info, DuelRoom>,
+    config: &Account<'info, Config>,
     total_pot: u64,
     winner_is_creator: bool,
     signer: &[&[&[u8]]],
 ) -> Result<()> {
-    let config = &ctx.accounts.config;
     let (_fee, keeper_tip, platform_fee) = fee_splits(
         total_pot,
         config.platform_fee_bps,
         config.keeper_tip_from_fee,
         config.keeper_tip_usdc,
     )?;
+
     let winner_payout = total_pot
         .checked_sub(_fee)
         .ok_or(SlotwordError::Overflow)?;
 
     let winner_acc = if winner_is_creator {
-        &ctx.accounts.creator_token_account
+        creator_token_account
     } else {
-        &ctx.accounts.opponent_token_account
+        opponent_token_account
     };
 
     escrow_transfer_from_room(
-        &ctx.accounts.token_program,
-        &ctx.accounts.usdc_mint,
-        &ctx.accounts.room_escrow,
+        token_program,
+        usdc_mint,
+        room_escrow,
         winner_acc,
-        &ctx.accounts.room.to_account_info(),
+        &room.to_account_info(),
         winner_payout,
         signer,
     )?;
+
     if keeper_tip > 0 {
         escrow_transfer_from_room(
-            &ctx.accounts.token_program,
-            &ctx.accounts.usdc_mint,
-            &ctx.accounts.room_escrow,
-            &ctx.accounts.keeper_token_account,
-            &ctx.accounts.room.to_account_info(),
+            token_program,
+            usdc_mint,
+            room_escrow,
+            keeper_token_account,
+            &room.to_account_info(),
             keeper_tip,
             signer,
         )?;
     }
+
     if platform_fee > 0 {
         escrow_transfer_from_room(
-            &ctx.accounts.token_program,
-            &ctx.accounts.usdc_mint,
-            &ctx.accounts.room_escrow,
-            &ctx.accounts.platform_token_account,
-            &ctx.accounts.room.to_account_info(),
+            token_program,
+            usdc_mint,
+            room_escrow,
+            platform_token_account,
+            &room.to_account_info(),
             platform_fee,
             signer,
         )?;
     }
+
     Ok(())
 }
