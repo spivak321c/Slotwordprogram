@@ -10,18 +10,11 @@
  * Flow:
  *   1. Pick today's word from WORD_LIST (deterministically — e.g. by
  *      `dayIndex % wordList.length`).
- *   2. Read a recent slot hash from the cluster and use it as slot_hash_seed,
- *      OR fetch the slot_hashes sysvar inside the program (the program does
- *      this, so we only need the word).
- *   3. solution_hash = SHA-256(slot_hash_seed || word). The actual seed is
- *      read inside the program from the SlotHashes sysvar. The backend must
- *      read the *same* recent slot hash before submitting, or accept that
- *      the on-chain seed will differ slightly. For pre-production we pass a
- *      known `solutionHash` that the authority pre-computes by simulating,
- *      or by reading the post-init `slot_hash_seed` and re-submitting once
- *      via a follow-up `set_duel_word`-style edit. Since v6.3 keeps daily
- *      puzzle simple, we rely on the SlotHashes sysvar read inside the
- *      program and compute `solution_hash` by calling a read-only RPC.
+ *   2. Read a recent slot hash from the cluster and pass it as slot_hash_seed.
+ *   3. solution_hash = SHA-256(slot_hash_seed || word).
+ *
+ * The seed is an explicit program argument, so what we pass is exactly what
+ * gets stored — no sysvar race between our read and the program's read.
  */
 
 import * as anchor from "@coral-xyz/anchor";
@@ -124,7 +117,12 @@ async function main() {
   );
 
   try {
-    await client.initializeDay(authorityKeypair.publicKey, dayIndex, solutionHash);
+    await client.initializeDay(
+      authorityKeypair.publicKey,
+      dayIndex,
+      slotHashSeed,
+      solutionHash
+    );
     console.log("[init-day] OK");
   } catch (err: any) {
     if (err?.message?.includes("already in use")) {

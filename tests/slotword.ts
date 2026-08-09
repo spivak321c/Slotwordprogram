@@ -10,7 +10,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   createMint,
-  createAccount,
+  getOrCreateAssociatedTokenAccount,
   mintTo,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
@@ -93,7 +93,7 @@ describe("slotword comprehensive", function () {
     Number((await provider.connection.getTokenAccountBalance(t)).value.amount);
 
   // ----- instruction builders (kept close to the IDL) ----------------
-  const createRoomIx = (
+  const createRoomI = (
     creator: PublicKey,
     uid: BN,
     stake: BN,
@@ -188,8 +188,9 @@ describe("slotword comprehensive", function () {
       program.programId
     );
 
-    // The program reads the REAL slot-hashes sysvar seed, so the test must
-    // use the same seed it will derive (data[12..44] = newest hash).
+    // The seed is passed as an explicit argument (no sysvar race): the test
+    // reads the SlotHashes sysvar once, then hands that exact seed (and the
+    // matching solution hash) to initialize_day.
     const sysvar = await provider.connection.getAccountInfo(SLOT_HASHES_SYSVAR);
     assert.ok(sysvar, "slot hashes sysvar available");
     const slotSeed = Buffer.from(sysvar!.data.slice(12, 44));
@@ -197,12 +198,11 @@ describe("slotword comprehensive", function () {
 
     try {
       await program.methods
-        .initializeDay(dayIndex, Array.from(dailyHash))
+        .initializeDay(dayIndex, Array.from(slotSeed), Array.from(dailyHash))
         .accounts({
           dailyChallenge: dailyPda,
           config: configPda,
           authority: authorityKey,
-          slotHashes: SLOT_HASHES_SYSVAR,
           systemProgram: SystemProgram.programId,
         })
         .rpc();
@@ -211,10 +211,10 @@ describe("slotword comprehensive", function () {
     }
 
     // Token accounts for the main duel fixtures.
-    aliceToken = await createAccount(provider.connection, authority.payer, usdcMint, ALICE.publicKey);
-    bobToken = await createAccount(provider.connection, authority.payer, usdcMint, BOB.publicKey);
-    keeperToken = await createAccount(provider.connection, authority.payer, usdcMint, authorityKey);
-    platformToken = await createAccount(provider.connection, authority.payer, usdcMint, authorityKey);
+    aliceToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, ALICE.publicKey)).address;
+    bobToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, BOB.publicKey)).address;
+    keeperToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, authorityKey)).address;
+    platformToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, authorityKey)).address;
     await mintTo(provider.connection, authority.payer, usdcMint, aliceToken, authorityKey, 10_000_000);
     await mintTo(provider.connection, authority.payer, usdcMint, bobToken, authorityKey, 10_000_000);
   });
@@ -396,7 +396,7 @@ describe("slotword comprehensive", function () {
   it("3.5 creator can cancel a room with no opponent and gets the full stake back", async () => {
     const creatorC = Keypair.generate();
     await provider.connection.requestAirdrop(creatorC.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
-    const cToken = await createAccount(provider.connection, authority.payer, usdcMint, creatorC.publicKey);
+    const cToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, creatorC.publicKey)).address;
     await mintTo(provider.connection, authority.payer, usdcMint, cToken, authorityKey, 5_000_000);
 
     const uid = new BN(5);
@@ -467,8 +467,10 @@ describe("slotword comprehensive", function () {
   it("3.8 a full room rejects additional joiners", async () => {
     const carol = Keypair.generate();
     await provider.connection.requestAirdrop(carol.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL);
+    const carolToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, carol.publicKey)).address;
+    await mintTo(provider.connection, authority.payer, usdcMint, carolToken, authorityKey, 10_000_000);
     await expectError(
-      joinRoomI(roomA, carol.publicKey, bobToken).signers([carol]).rpc(),
+      joinRoomI(roomA, carol.publicKey, carolToken).signers([carol]).rpc(),
       "RoomFull"
     );
   });
@@ -495,7 +497,9 @@ describe("slotword comprehensive", function () {
 
   /** Fetch the room's on-chain solution commitment (SHA-256(seed||room||"DUEL")) */
   async function roomSolutionHash(room: PublicKey) {
-    return (await program.account.duelRoom.fetch(room)).roomSolutionHash;
+    return Buffer.from(
+      (await program.account.duelRoom.fetch(room)).roomSolutionHash
+    );
   }
 
   it("4.1 set_duel_word with a zero hash is rejected", async () => {
@@ -589,7 +593,8 @@ describe("slotword comprehensive", function () {
 
   it("4.8 valid commits after the 45-second minimum (slow happy path)", async () => {
     // The 45s floor runs from creator-entry creation (3.1) and opponent
-    // join (3.7); both are long past by now.
+    // join (3.7); wait past it explicitly so the suite order stays stable.
+    await sleep(46_000); // pass the solve-time floor
     const commitA = sha256(Buffer.concat([Buffer.from(DUEL_WORD), saltAlice, ALICE.publicKey.toBytes()]));
     await commitI(roomA, ALICE.publicKey, Array.from(commitA), 3)
       .signers([ALICE])
@@ -674,6 +679,13 @@ describe("slotword comprehensive", function () {
   // ================================================================
   // 5. Settlement
   // ================================================================
+  // Stakes from earlier rooms stay locked in escrow, so top up the shared
+  // player ATAs before the settlement suite spends more.
+  before(async () => {
+    await mintTo(provider.connection, authority.payer, usdcMint, aliceToken, authorityKey, 50_000_000);
+    await mintTo(provider.connection, authority.payer, usdcMint, bobToken, authorityKey, 50_000_000);
+  });
+
   const settleAccounts = (room: PublicKey) => ({
     room,
     creatorEntry: entryPda(room, ALICE.publicKey),
@@ -758,7 +770,7 @@ describe("slotword comprehensive", function () {
       .rpc();
     const carol = Keypair.generate();
     await provider.connection.requestAirdrop(carol.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL);
-    const carolToken = await createAccount(provider.connection, authority.payer, usdcMint, carol.publicKey);
+    const carolToken = (await getOrCreateAssociatedTokenAccount(provider.connection, authority.payer, usdcMint, carol.publicKey)).address;
     await mintTo(provider.connection, authority.payer, usdcMint, carolToken, authorityKey, 5_000_000);
     await joinRoomI(room, carol.publicKey, carolToken)
       .signers([carol])

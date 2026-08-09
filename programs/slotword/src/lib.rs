@@ -21,9 +21,15 @@ pub mod slotword {
     pub fn initialize_day(
         ctx: Context<InitializeDay>,
         day_index: u64,
+        slot_hash_seed: [u8; 32],
         solution_hash: [u8; 32],
     ) -> Result<()> {
-        instructions::initialize_day::initialize_day(ctx, day_index, solution_hash)
+        instructions::initialize_day::initialize_day(
+            ctx,
+            day_index,
+            slot_hash_seed,
+            solution_hash,
+        )
     }
 
     pub fn submit_solution(

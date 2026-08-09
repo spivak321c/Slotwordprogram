@@ -22,10 +22,6 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-const SLOT_HASHES_SYSVAR = new PublicKey(
-  "SysvarS1otHashes111111111111111111111111111"
-);
-
 export class SlotwordClient {
   constructor(
     public readonly program: Program<Idl>,
@@ -160,17 +156,21 @@ export class SlotwordClient {
   async initializeDay(
     authority: PublicKey,
     dayIndex: BN | number,
+    slotHashSeed: Buffer | number[],
     solutionHash: Buffer | number[]
   ): Promise<string> {
     const [daily] = this.dailyChallengePda(dayIndex);
     const [config] = this.configPda();
     return this.program.methods
-      .initializeDay(new BN(dayIndex), Array.from(solutionHash))
+      .initializeDay(
+        new BN(dayIndex),
+        Array.from(slotHashSeed),
+        Array.from(solutionHash)
+      )
       .accounts({
         dailyChallenge: daily,
         config,
         authority,
-        slotHashes: SLOT_HASHES_SYSVAR,
         systemProgram: SystemProgram.programId,
       })
       .rpc();

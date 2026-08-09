@@ -6,10 +6,14 @@ use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct JoinDuel<'info> {
+    #[account(mut)]
+    pub opponent: Signer<'info>,
+
     #[account(
         mut,
         constraint = room.status == RoomStatus::Active @ SlotwordError::RoomNotActive,
         constraint = room.opponent == Pubkey::default() @ SlotwordError::RoomFull,
+        constraint = opponent.key() != room.creator @ SlotwordError::NotParticipant,
     )]
     pub room: Account<'info, DuelRoom>,
 
@@ -37,9 +41,6 @@ pub struct JoinDuel<'info> {
     pub room_escrow: InterfaceAccount<'info, TokenAccount>,
 
     pub usdc_mint: InterfaceAccount<'info, Mint>,
-
-    #[account(mut)]
-    pub opponent: Signer<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
